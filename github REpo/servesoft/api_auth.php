@@ -198,49 +198,64 @@ try {
                 $userId = $stmt->insert_id;
                 $stmt->close();
 
-                // All users are created as customers regardless of role selection
-                $stmt = $conn->prepare('INSERT INTO Customer (CustomerID, UserID) VALUES (?, ?)');
-                $stmt->bind_param('ii', $userId, $userId);
-                $stmt->execute();
-                $stmt->close();
+                // Create role-specific records
+                if ($role === 'customer') {
+                    $stmt = $conn->prepare('INSERT INTO Customer (CustomerID, UserID) VALUES (?, ?)');
+                    $stmt->bind_param('ii', $userId, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+                } elseif ($role === 'admin') {
+                    $stmt = $conn->prepare('INSERT INTO Admin (AdminID, UserID) VALUES (?, ?)');
+                    $stmt->bind_param('ii', $userId, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+                } elseif ($role === 'owner') {
+                    // Owner is a restaurant manager - they also get customer account
+                    $stmt = $conn->prepare('INSERT INTO Customer (CustomerID, UserID) VALUES (?, ?)');
+                    $stmt->bind_param('ii', $userId, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    // Check if there's at least one restaurant, if not create a placeholder
+                    $result = $conn->query('SELECT RestaurantID FROM Restaurant LIMIT 1');
+                    if ($result->num_rows === 0) {
+                        // Create a placeholder restaurant
+                        $conn->query("INSERT INTO Restaurant (RestaurantName, Address, ContactNumber, Location, Status) VALUES ('Pending Setup', 'To be configured', '', '', 'Active')");
+                        $restaurantId = $conn->insert_id;
+                    } else {
+                        $row = $result->fetch_assoc();
+                        $restaurantId = $row['RestaurantID'];
+                    }
+
+                    $stmt = $conn->prepare('INSERT INTO Restaurant_Manager (ManagerID, UserID, RestaurantID) VALUES (?, ?, ?)');
+                    $stmt->bind_param('iii', $userId, $userId, $restaurantId);
+                    $stmt->execute();
+                    $stmt->close();
+                } elseif ($role === 'agent') {
+                    // Agent is a delivery agent
+                    $stmt = $conn->prepare('INSERT INTO Customer (CustomerID, UserID) VALUES (?, ?)');
+                    $stmt->bind_param('ii', $userId, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+
+                    $stmt = $conn->prepare('INSERT INTO DeliveryAgent (AgentID, UserID) VALUES (?, ?)');
+                    $stmt->bind_param('ii', $userId, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+                } else {
+                    // Default to customer
+                    $stmt = $conn->prepare('INSERT INTO Customer (CustomerID, UserID) VALUES (?, ?)');
+                    $stmt->bind_param('ii', $userId, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+                }
 
                 $conn->commit();
-
-                // Get the newly created user data
-                $stmt = $conn->prepare('SELECT UserID, Name, Email, PhoneNumber FROM User WHERE UserID = ?');
-                $stmt->bind_param('i', $userId);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $newUser = $result->fetch_assoc();
-                $stmt->close();
-
-                // Get customer ID
-                $stmt = $conn->prepare('SELECT CustomerID FROM Customer WHERE UserID = ?');
-                $stmt->bind_param('i', $userId);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $customerData = $result->fetch_assoc();
-                $stmt->close();
-
-                // Set session for new user
-                $_SESSION['user_id'] = $userId;
-                $_SESSION['name'] = $newUser['Name'];
-                $_SESSION['email'] = $newUser['Email'];
-                $_SESSION['phone'] = $newUser['PhoneNumber'];
-                $_SESSION['primary_role'] = 'customer';
-                $_SESSION['role_data'] = ['id' => $customerData['CustomerID']];
 
                 echo json_encode([
                     'success' => true,
                     'message' => 'Account created successfully',
-                    'user' => [
-                        'id' => 'u' . $userId,
-                        'name' => $newUser['Name'],
-                        'email' => $newUser['Email'],
-                        'phone' => $newUser['PhoneNumber'],
-                        'role' => 'customer',
-                        'roleData' => ['id' => $customerData['CustomerID']]
-                    ]
+                    'userId' => $userId
                 ]);
             } catch (mysqli_sql_exception $e) {
                 $conn->rollback();
