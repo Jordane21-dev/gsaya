@@ -45,16 +45,17 @@ export const authAPI = {
         phone: userData.phone,
         email: userData.email,
         password: userData.password,
-        confirm: userData.password
+        confirm: userData.password,
+        role: userData.role
       }),
     });
 
-    const loginResponse = await authAPI.login({
-      email: userData.email,
-      password: userData.password
-    });
-
-    return loginResponse;
+    return {
+      data: {
+        user: response.data.user,
+        token: 'session'
+      }
+    };
   },
 
   verify: async () => {
@@ -75,6 +76,10 @@ export const authAPI = {
     return serveSoftAPI.request('api_auth.php?action=logout', {
       method: 'POST',
     });
+  },
+
+  checkAdmin: async () => {
+    return serveSoftAPI.request('api_auth.php?action=checkAdmin');
   }
 };
 

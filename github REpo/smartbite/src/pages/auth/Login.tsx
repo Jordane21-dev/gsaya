@@ -20,7 +20,7 @@ export default function Login() {
     try {
       const success = await login(email, password);
       if (success) {
-        navigate('/');
+        navigate('/customer');
       } else {
         setError('Invalid email or password');
       }

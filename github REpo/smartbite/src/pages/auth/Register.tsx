@@ -78,7 +78,7 @@ export default function Register() {
       const success = await register(registrationData);
 
       if (success) {
-        navigate('/');
+        navigate('/customer');
       } else {
         setError('Registration failed. Please try again.');
       }
